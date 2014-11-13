@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothManager;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.util.Log;
 import android.view.Menu;
@@ -23,9 +24,9 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        this.mTemperature = (TextView) findViewById(R.id.tempTextField);
-        this.mPressure = (TextView) findViewById(R.id.preasureTextView);
-        this.mHumidity = (TextView) findViewById(R.id.humidityTextView);
+        this.temperatureTextView = (TextView) findViewById(R.id.tempTextField);
+        this.preasureTextView = (TextView) findViewById(R.id.preasureTextView);
+        this.humidityTextView = (TextView) findViewById(R.id.humidityTextView);
 
                 /*
          * Bluetooth in Android 4.3 is accessed via the BluetoothManager, rather than
@@ -85,15 +86,35 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         parseScaneResult(scanRecord);
      }
 
+    private static int UPDATE_TEXT_FIELDS_WITH_SENSOR_VALUES = 4711;
+
     private void parseScaneResult(byte[] scanRecord) {
         WeatherStationAdvertisementReader reader = new WeatherStationAdvertisementReader(scanRecord);
-        float temp = reader.readTemp();
-        this.mTemperature.setText(String.format("%2.2f", temp));
-        float presure = reader.readPreasure();
-        this.mPressure.setText(String.format("%4.1f", presure));
-        float humidity = reader.readHumidity();
-        this.mHumidity.setText(String.format("%2.2f", humidity));
+        this.temperatureSensorValue = reader.readTemp();
+        this.preasureSensorValue = reader.readPreasure();
+        this.humiditySensorValue = reader.readHumidity();
+
+        // send an update message from this background thread to the UI Thread
+        Message updateMessageMessage =
+                mHandler.obtainMessage(UPDATE_TEXT_FIELDS_WITH_SENSOR_VALUES, this);
+        updateMessageMessage.sendToTarget();
     }
+
+
+    private Handler mHandler = new Handler(Looper.getMainLooper()) {
+        @Override
+        public void handleMessage(Message msg) {
+            if (msg.what == UPDATE_TEXT_FIELDS_WITH_SENSOR_VALUES) {
+                Log.i(TAG, "Message handler: updating textFields with new sensor readings in UI Thread");
+                MainActivity.this.temperatureTextView.setText(String.format("%2.2f", MainActivity.this.temperatureSensorValue));
+                MainActivity.this.preasureTextView.setText(String.format("%4.1f", MainActivity.this.preasureSensorValue));
+                MainActivity.this.humidityTextView.setText(String.format("%2.2f", MainActivity.this.humiditySensorValue));
+            } else {
+                Log.i(TAG, "Message handler: ERROR UNHANDLED MESSAGE");
+            }
+        }
+    };
+
 
     // return the payload, verify the first three bytes identify our service, then
     // chop them off, return the rest.
@@ -124,12 +145,6 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         }
         return null;
     }
-    private Handler mHandler = new Handler() {
-        @Override
-        public void handleMessage(Message msg) {
-           Log.w(TAG, "un-handled Message");
-        }
-    };
 
     private Runnable mStopRunnable = new Runnable() {
         @Override
@@ -171,7 +186,8 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
         return super.onOptionsItemSelected(item);
     }
 
-    private TextView mTemperature, mHumidity, mPressure;
+    private TextView temperatureTextView, humidityTextView, preasureTextView;
+    private float temperatureSensorValue, preasureSensorValue, humiditySensorValue;
 
     private BluetoothAdapter mBluetoothAdapter;
 
