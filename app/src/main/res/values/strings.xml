@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <string name="app_name">BLEWeatherStation</string>
+    <string name="action_scan">Can for nearby BLE devices</string>
+    <string name="action_settings">Settings</string>
+
+</resources>
