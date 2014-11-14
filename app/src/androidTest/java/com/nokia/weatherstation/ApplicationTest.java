@@ -1,4 +1,4 @@
-package org.grassel.bleweatherstation;
+package com.nokia.weatherstation;
 
 import android.app.Application;
 import android.test.ApplicationTestCase;

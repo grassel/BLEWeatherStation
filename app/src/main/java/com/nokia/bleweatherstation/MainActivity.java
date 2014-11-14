@@ -1,4 +1,4 @@
-package org.grassel.bleweatherstation;
+package com.nokia.bleweatherstation;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -13,6 +13,8 @@ import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.TextView;
+
+import org.grassel.bleweatherstation.R;
 
 import java.util.Arrays;
 
@@ -90,10 +92,11 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
     private void parseScaneResult(byte[] scanRecord) {
         WeatherStationAdvertisementReader reader = new WeatherStationAdvertisementReader(scanRecord);
-        this.temperatureSensorValue = reader.readTemp();
-        this.preasureSensorValue = reader.readPreasure();
-        this.humiditySensorValue = reader.readHumidity();
-
+        if (reader.checkServiceUuid()) {
+            this.temperatureSensorValue = reader.readTemp();
+            this.preasureSensorValue = reader.readPreasure();
+            this.humiditySensorValue = reader.readHumidity();
+        }
         // send an update message from this background thread to the UI Thread
         Message updateMessageMessage =
                 mHandler.obtainMessage(UPDATE_TEXT_FIELDS_WITH_SENSOR_VALUES, this);
@@ -116,35 +119,7 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
     };
 
 
-    // return the payload, verify the first three bytes identify our service, then
-    // chop them off, return the rest.
-    private byte[] parseServiceDataFromBytes(byte[] scanRecord) {
-        int currentPos = 0;
-        try {
-            while (currentPos < scanRecord.length) {
-                int fieldLength = scanRecord[currentPos++] & 0xff;
-                if (fieldLength == 0) {
-                    break;
-                }
-                int fieldType = scanRecord[currentPos++] & 0xff;
-                if (fieldType == DATA_TYPE_SERVICE_DATA) {
-                    // The first two bytes of the service data are service data UUID.
-                    if (scanRecord[currentPos++] == WEATHER_SERVICE_16_BIT_UUID_BYTES[0]
-                            && scanRecord[currentPos++] == WEATHER_SERVICE_16_BIT_UUID_BYTES[1]) {
-                        // length includes the length of the field type and ID
-                        byte[] bytes = new byte[fieldLength - 3];
-                        System.arraycopy(scanRecord, currentPos, bytes, 0, fieldLength - 3);
-                        return bytes;
-                    }
-                }
-                // length includes the length of the field type
-                currentPos += fieldLength - 1;
-            }
-        } catch (IndexOutOfBoundsException e) {
-            Log.e(TAG, "unable to parse scan record: " + Arrays.toString(scanRecord));
-        }
-        return null;
-    }
+
 
     private Runnable mStopRunnable = new Runnable() {
         @Override
@@ -193,6 +168,5 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
     private static final String TAG = "BLEWeatherStation.MainActivity";
     private static final int DATA_TYPE_SERVICE_DATA = 0x16;
-    private static final byte[] WEATHER_SERVICE_16_BIT_UUID_BYTES = {(byte) 0xd8, (byte) 0xff}; //
 
 }

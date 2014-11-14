@@ -1,4 +1,4 @@
-package org.grassel.bleweatherstation;
+package com.nokia.bleweatherstation;
 
 /**
  * Created by guido on 13/11/14.

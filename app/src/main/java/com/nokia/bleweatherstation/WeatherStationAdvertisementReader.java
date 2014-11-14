@@ -1,4 +1,4 @@
-package org.grassel.bleweatherstation;
+package com.nokia.bleweatherstation;
 
 import android.util.Log;
 
@@ -9,6 +9,17 @@ public class WeatherStationAdvertisementReader extends AdvertisementReader {
 
     public WeatherStationAdvertisementReader(byte[] beaconPayload) {
             super(beaconPayload);
+    }
+
+    boolean checkServiceUuid() {
+        if ((beaconPayload == null) || (beaconPayload.length < serviceUuidOffset+1)) {
+            return false;
+        }
+        Log.i(TAG, String.format("serviceUuid: %Xo, %Xo", beaconPayload[serviceUuidOffset],
+                beaconPayload[serviceUuidOffset+1]));
+        boolean result = (serviceUuid[0] ==  beaconPayload[serviceUuidOffset]) &&
+                (serviceUuid[1] == beaconPayload[serviceUuidOffset+1]);
+        return result;
     }
 
     float readTemp() {
@@ -36,6 +47,10 @@ public class WeatherStationAdvertisementReader extends AdvertisementReader {
     }
 
     private static int payloadOffset = 6;
+
+    private static int serviceUuidOffset = payloadOffset + 0;
+    private static final byte[] serviceUuid = {(byte) 0xd8, (byte) 0xff}; //
+
     private static int payloadOffsetTemp = payloadOffset + 4;
     private static float   convertionPresitionTemp = 10.0f;
     private static float   convertionOffsetTemp = -100.0f;
