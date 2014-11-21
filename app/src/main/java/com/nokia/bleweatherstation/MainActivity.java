@@ -4,11 +4,18 @@ import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.le.BluetoothLeScanner;
+import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
+import android.bluetooth.le.ScanRecord;
+import android.bluetooth.le.ScanResult;
+import android.bluetooth.le.ScanSettings;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
+import android.os.ParcelUuid;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -16,10 +23,13 @@ import android.widget.TextView;
 
 import org.grassel.bleweatherstation.R;
 
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.UUID;
 
 
-public class MainActivity extends Activity implements BluetoothAdapter.LeScanCallback {
+public class MainActivity extends Activity  {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -60,37 +70,80 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
 
 
     private void startScan() {
+        this.bluetoothLeScanner = this.mBluetoothAdapter.getBluetoothLeScanner();
+        ScanFilter filter = new ScanFilter.Builder().build();
+        List<ScanFilter> filterList = new ArrayList<ScanFilter>(1);
+        filterList.add(filter);
+        ScanSettings settings = new ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build();
+        this.bluetoothLeScanner.startScan(filterList, settings, new ScanCallback() {
+            @Override
+            public void onBatchScanResults(List<ScanResult> results) {
+                super.onBatchScanResults(results);
+                for (int i=0; i<results.size(); i++) {
+                    ScanResult result = results.get(i);
+                    MainActivity.this.onLeScan(result.getDevice(), result.getRssi(), result.getScanRecord());
+                }
+            }
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                super.onScanResult(callbackType, result);
+                MainActivity.this.onLeScan(result.getDevice(), result.getRssi(), result.getScanRecord());
+            }
 
-        mBluetoothAdapter.startLeScan(this);
+            @Override
+            public void  onScanFailed (int errorCode) {
+                Log.e(TAG, "BLE scan FAILED with code " + errorCode);
+            }
+        });
         setProgressBarIndeterminateVisibility(true);
 
        // mHandler.postDelayed(mStopRunnable, 10 * 1000); // scan for 20 sec
         Log.i(TAG, "scan has started");
     }
 
+
+
     private void stopScan() {
-        mBluetoothAdapter.stopLeScan(this);
+        if (bluetoothLeScanner == null) {
+            Log.w(TAG, "BLE stopScan: bluetoothLeScanner is NULL");
+            return;
+        }
+
+        this.bluetoothLeScanner.stopScan(new ScanCallback() {
+            @Override
+            public void onScanResult(int callbackType, ScanResult result) {
+                super.onScanResult(callbackType, result);
+                MainActivity.this.onLeScan(result.getDevice(), result.getRssi(), result.getScanRecord());
+            }
+
+            @Override
+            public void onScanFailed(int errorCode) {
+                super.onScanFailed(errorCode);
+                Log.e(TAG, "BLE scan FAILED with code " + errorCode);
+            }
+        });
         setProgressBarIndeterminateVisibility(false);
         Log.i(TAG, "scan has stopped");
     }
 
-    /* BluetoothAdapter.LeScanCallback */
-
-    @Override
-    public void onLeScan(BluetoothDevice device, int rssi, byte[] scanRecord) {
+    public void onLeScan(BluetoothDevice device, int rssi, ScanRecord sc) {
         Log.i(TAG, "New LE Device: " + device.getName() + " @ " + rssi);
+
+        byte[] scanRecord = sc.getBytes();
 
         String scanRecordHex = "";
         for (int i=0; i<scanRecord.length; i++) {
             scanRecordHex += String.format("%Xo ", scanRecord[i]);
         }
         Log.i(TAG, "scanrecord=" + scanRecordHex);
-        parseScaneResult(scanRecord);
+        parseScanResult(scanRecord);
      }
 
     private static int UPDATE_TEXT_FIELDS_WITH_SENSOR_VALUES = 4711;
 
-    private void parseScaneResult(byte[] scanRecord) {
+    private void parseScanResult(byte[] scanRecord) {
         WeatherStationAdvertisementReader reader = new WeatherStationAdvertisementReader(scanRecord);
         if (reader.checkServiceUuid()) {
             this.temperatureSensorValue = reader.readTemp();
@@ -165,8 +218,9 @@ public class MainActivity extends Activity implements BluetoothAdapter.LeScanCal
     private float temperatureSensorValue, preasureSensorValue, humiditySensorValue;
 
     private BluetoothAdapter mBluetoothAdapter;
+    private BluetoothLeScanner bluetoothLeScanner;
 
     private static final String TAG = "BLEWeatherStation.MainActivity";
     private static final int DATA_TYPE_SERVICE_DATA = 0x16;
-
+    private static final byte [] SERVICE_UUID = {(byte) 0xD8, (byte) 0xFF};
 }
